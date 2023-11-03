@@ -5,8 +5,8 @@ message("Using toolchain file ${CMAKE_TOOLCHAIN_FILE}.")
 ## Define project
 ########################################################################################################################
 project(
-        CommonLibSSESamplePlugin
-        VERSION 1.0.0
+        DodgeableConcentrationSpells
+        VERSION 1.2.0
         DESCRIPTION "A sample SKSE plugin built with CommonLibSSE."
         LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
@@ -20,19 +20,12 @@ configure_file(
         ${CMAKE_CURRENT_BINARY_DIR}/version.rc
         @ONLY)
 
-set(headers
-        include/Sample/Sample.h)
-
 set(sources
         src/Config.cpp
-        src/HitCounterManager.cpp
         src/Main.cpp
-        src/Papyrus.cpp
+        src/Hooks.cpp
 
         ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
-
-set(tests
-        test/HitCounterManager.cpp)
 
 source_group(
         TREE ${CMAKE_CURRENT_SOURCE_DIR}
@@ -77,39 +70,8 @@ target_precompile_headers(${PROJECT_NAME}
         PRIVATE
         src/PCH.h)
 
-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/Sample"
-        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
-
 install(TARGETS ${PROJECT_NAME}
         DESTINATION "${CMAKE_INSTALL_LIBDIR}")
-
-########################################################################################################################
-## Configure unit tests
-########################################################################################################################
-if(BUILD_TESTS)
-    find_package(Catch2 CONFIG REQUIRED)
-
-    include(CTest)
-    include(Catch)
-
-    add_executable(
-            ${PROJECT_NAME}Tests
-            ${headers}
-            ${tests})
-
-    target_link_libraries(
-            ${PROJECT_NAME}Tests
-            PRIVATE
-            ${PROJECT_NAME}
-            Catch2::Catch2WithMain)
-
-    target_precompile_headers(${PROJECT_NAME}Tests
-            PRIVATE
-            src/PCH.h)
-
-    catch_discover_tests(${PROJECT_NAME}Tests)
-    add_test(NAME ${PROJECT_NAME}Tests COMMAND ${PROJECT_NAME}Tests)
-endif()
 
 ########################################################################################################################
 ## Automatic plugin deployment

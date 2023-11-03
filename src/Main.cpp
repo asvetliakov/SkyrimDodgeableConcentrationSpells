@@ -1,12 +1,9 @@
-#include <Sample/HitCounterManager.h>
-
-#include "Config.h"
-#include "Papyrus.h"
-
 #include <stddef.h>
 
+#include "Config.h"
+#include "Hooks.h"
+
 using namespace RE::BSScript;
-using namespace Sample;
 using namespace SKSE;
 using namespace SKSE::log;
 using namespace SKSE::stl;
@@ -33,13 +30,12 @@ namespace {
 
         std::shared_ptr<spdlog::logger> log;
         if (IsDebuggerPresent()) {
-            log = std::make_shared<spdlog::logger>(
-                "Global", std::make_shared<spdlog::sinks::msvc_sink_mt>());
+            log = std::make_shared<spdlog::logger>("Global", std::make_shared<spdlog::sinks::msvc_sink_mt>());
         } else {
             log = std::make_shared<spdlog::logger>(
                 "Global", std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true));
         }
-        const auto& debugConfig = Sample::Config::GetSingleton().GetDebug();
+        const auto& debugConfig = Config::GetSingleton().GetDebug();
         log->set_level(debugConfig.GetLogLevel());
         log->flush_on(debugConfig.GetFlushLevel());
 
@@ -63,15 +59,15 @@ namespace {
      * for the entire plugin.
      * </p>
      */
-    void InitializeSerialization() {
-        log::trace("Initializing cosave serialization...");
-        auto* serde = GetSerializationInterface();
-        serde->SetUniqueID(_byteswap_ulong('SMPL'));
-        serde->SetSaveCallback(Sample::HitCounterManager::OnGameSaved);
-        serde->SetRevertCallback(Sample::HitCounterManager::OnRevert);
-        serde->SetLoadCallback(Sample::HitCounterManager::OnGameLoaded);
-        log::trace("Cosave serialization initialized.");
-    }
+    // void InitializeSerialization() {
+    //     log::trace("Initializing cosave serialization...");
+    //     auto* serde = GetSerializationInterface();
+    //     serde->SetUniqueID(_byteswap_ulong('SMPL'));
+    //     serde->SetSaveCallback(Sample::Manager::OnGameSaved);
+    //     serde->SetRevertCallback(Sample::Manager::OnRevert);
+    //     serde->SetLoadCallback(Sample::Manager::OnGameLoaded);
+    //     log::trace("Cosave serialization initialized.");
+    // }
 
     /**
      * Initialize our Papyrus extensions.
@@ -87,14 +83,14 @@ namespace {
      * additional functions.
      * </p>
      */
-    void InitializePapyrus() {
-        log::trace("Initializing Papyrus binding...");
-        if (GetPapyrusInterface()->Register(Sample::RegisterHitCounter)) {
-            log::debug("Papyrus functions bound.");
-        } else {
-            stl::report_and_fail("Failure to register Papyrus bindings.");
-        }
-    }
+    // void InitializePapyrus() {
+    //     log::trace("Initializing Papyrus binding...");
+    //     if (GetPapyrusInterface()->Register(Sample::RegisterHitCounter)) {
+    //         log::debug("Papyrus functions bound.");
+    //     } else {
+    //         stl::report_and_fail("Failure to register Papyrus bindings.");
+    //     }
+    // }
 
     /**
      * Initialize the trampoline space for function hooks.
@@ -118,7 +114,7 @@ namespace {
         trampoline.create(64);
         log::trace("Trampoline initialized.");
 
-        Sample::InitializeHook(trampoline);
+        Hooks::Initialize(trampoline);
     }
 
     /**
@@ -143,34 +139,37 @@ namespace {
      */
     void InitializeMessaging() {
         if (!GetMessagingInterface()->RegisterListener([](MessagingInterface::Message* message) {
-            switch (message->type) {
-                // Skyrim lifecycle events.
-                case MessagingInterface::kPostLoad: // Called after all plugins have finished running SKSEPlugin_Load.
-                    // It is now safe to do multithreaded operations, or operations against other plugins.
-                case MessagingInterface::kPostPostLoad: // Called after all kPostLoad message handlers have run.
-                case MessagingInterface::kInputLoaded: // Called when all game data has been found.
-                    break;
-                case MessagingInterface::kDataLoaded: // All ESM/ESL/ESP plugins have loaded, main menu is now active.
-                    // It is now safe to access form data.
-                    InitializeHooking();
-                    break;
+                switch (message->type) {
+                    // Skyrim lifecycle events.
+                    case MessagingInterface::kPostLoad:      // Called after all plugins have finished running
+                                                             // SKSEPlugin_Load. It is now safe to do multithreaded
+                                                             // operations, or operations against other plugins.
+                    case MessagingInterface::kPostPostLoad:  // Called after all kPostLoad message handlers have run.
+                    case MessagingInterface::kInputLoaded:   // Called when all game data has been found.
+                        break;
+                    case MessagingInterface::kDataLoaded:  // All ESM/ESL/ESP plugins have loaded, main menu is now
+                                                           // active.
+                        // It is now safe to access form data.
+                        InitializeHooking();
+                        break;
 
-                // Skyrim game events.
-                case MessagingInterface::kNewGame: // Player starts a new game from main menu.
-                case MessagingInterface::kPreLoadGame: // Player selected a game to load, but it hasn't loaded yet.
-                    // Data will be the name of the loaded save.
-                case MessagingInterface::kPostLoadGame: // Player's selected save game has finished loading.
-                    // Data will be a boolean indicating whether the load was successful.
-                case MessagingInterface::kSaveGame: // The player has saved a game.
-                    // Data will be the save name.
-                case MessagingInterface::kDeleteGame: // The player deleted a saved game from within the load menu.
-                    break;
-            }
-        })) {
+                    // Skyrim game events.
+                    case MessagingInterface::kNewGame:      // Player starts a new game from main menu.
+                    case MessagingInterface::kPreLoadGame:  // Player selected a game to load, but it hasn't loaded yet.
+                                                            // Data will be the name of the loaded save.
+                    case MessagingInterface::kPostLoadGame:  // Player's selected save game has finished loading.
+                                                             // Data will be a boolean indicating whether the load was
+                                                             // successful.
+                    case MessagingInterface::kSaveGame:      // The player has saved a game.
+                                                             // Data will be the save name.
+                    case MessagingInterface::kDeleteGame:  // The player deleted a saved game from within the load menu.
+                        break;
+                }
+            })) {
             stl::report_and_fail("Unable to register message listener.");
         }
     }
-}
+}  // namespace
 
 /**
  * This if the main callback for initializing your SKSE plugin, called just before Skyrim runs its main function.
@@ -189,11 +188,10 @@ SKSEPluginLoad(const LoadInterface* skse) {
     auto version = plugin->GetVersion();
     log::info("{} {} is loading...", plugin->GetName(), version);
 
-
     Init(skse);
     InitializeMessaging();
-    InitializeSerialization();
-    InitializePapyrus();
+    // InitializeSerialization();
+    // InitializePapyrus();
 
     log::info("{} has finished loading.", plugin->GetName());
     return true;
