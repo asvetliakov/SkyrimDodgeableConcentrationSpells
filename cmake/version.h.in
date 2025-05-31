@@ -1,0 +1,17 @@
+#pragma once
+
+namespace Version
+{
+    inline constexpr auto NAME    = "@PROJECT_VERSION@"sv;
+    inline constexpr auto PROJECT = "@PROJECT_NAME@"sv;
+
+    inline constexpr REL::Version VERSION
+    {
+        // clang-format off
+		@PROJECT_VERSION_MAJOR@u,
+		@PROJECT_VERSION_MINOR@u,
+		@PROJECT_VERSION_PATCH@u,
+        // clang-format on
+    };
+} // namespace Version
+

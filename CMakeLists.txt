@@ -1,116 +1,213 @@
 cmake_minimum_required(VERSION 3.21)
-message("Using toolchain file ${CMAKE_TOOLCHAIN_FILE}.")
 
-########################################################################################################################
-## Define project
-########################################################################################################################
+# ---- Cache build vars ----
+
+macro(set_from_environment VARIABLE)
+	if (NOT DEFINED ${VARIABLE} AND DEFINED ENV{${VARIABLE}})
+		set(${VARIABLE} $ENV{${VARIABLE}})
+	endif ()
+endmacro()
+
+set_from_environment(VCPKG_ROOT)
+
+if (DEFINED VCPKG_ROOT)
+	set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
+	set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "")
+else ()
+	message(
+		WARNING
+		"Variable VCPKG_ROOT is not set. Continuing without vcpkg."
+	)
+endif ()
+
+set(Boost_USE_STATIC_RUNTIME OFF CACHE BOOL "")
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "")
+
+# ---- Project ----
+
 project(
-        DodgeableConcentrationSpells
-        VERSION 1.2.0
-        DESCRIPTION "A sample SKSE plugin built with CommonLibSSE."
-        LANGUAGES CXX)
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
-
-include(GNUInstallDirs)
+	DodgeableConcentrationSpells
+	VERSION 1.0.0
+	LANGUAGES CXX
+)
 
 configure_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.rc.in
-        ${CMAKE_CURRENT_BINARY_DIR}/version.rc
-        @ONLY)
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.h.in
+	${CMAKE_CURRENT_BINARY_DIR}/include/Version.h
+	@ONLY
+)
 
-set(sources
-        src/Config.cpp
-        src/Main.cpp
-        src/Hooks.cpp
+configure_file(
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.rc.in
+	${CMAKE_CURRENT_BINARY_DIR}/version.rc
+	@ONLY
+)
 
-        ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+# ---- Include guards ----
+
+if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
+	message(
+		FATAL_ERROR
+			"In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there."
+	)
+endif()
+
+# ---- Globals ----
+
+if (MSVC)
+	add_compile_definitions(
+		_UNICODE
+	)
+
+	if (NOT ${CMAKE_GENERATOR} STREQUAL "Ninja")
+		add_compile_options(
+			/MP	# Build with Multiple Processes
+		)
+	endif ()
+endif ()
+
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_DEBUG OFF)
+
+set(Boost_USE_STATIC_LIBS ON)
+
+
+# ---- Dependencies ----
+
+set(ENABLE_SKYRIM_VR OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory("extern/CommonLibSSE" CommonLibSSE)
+
+find_package(spdlog REQUIRED CONFIG)
+
+# ---- Add source files ----
+
+set(SOURCES
+	src/PCH.h
+	src/Config.h
+	src/Config.cpp
+	src/Hooks.h
+	src/Hooks.cpp
+)
 
 source_group(
-        TREE ${CMAKE_CURRENT_SOURCE_DIR}
-        FILES
-        ${headers}
-        ${sources}
-        ${tests})
+	TREE
+		${CMAKE_CURRENT_SOURCE_DIR}
+	FILES
+		${SOURCES}
+)
 
-set(ENV{SkyrimPluginTargets} "${CMAKE_CURRENT_SOURCE_DIR}/dist-release")
+source_group(
+	TREE
+		${CMAKE_CURRENT_BINARY_DIR}
+	FILES
+		${CMAKE_CURRENT_BINARY_DIR}/include/version.h
+)
 
-#########################################################################################################################
-### Build options
-#########################################################################################################################
-message("Options:")
-option(BUILD_TESTS "Build unit tests." OFF)
-message("\tTests: ${BUILD_TESTS}")
+# ---- Create DLL ----
 
-########################################################################################################################
-## Configure target DLL
-########################################################################################################################
-find_package(CommonLibSSE CONFIG REQUIRED)
-find_package(ryml CONFIG REQUIRED)
-find_path(ARTICUNO_INCLUDE_DIRS "articuno/articuno.h")
+add_library(
+	${PROJECT_NAME}
+	SHARED
+	${SOURCES}
+	${CMAKE_CURRENT_BINARY_DIR}/include/version.h
+	${CMAKE_CURRENT_BINARY_DIR}/version.rc
+	.clang-format
+	.editorconfig
+)
 
-add_commonlibsse_plugin(${PROJECT_NAME} SOURCES ${headers} ${sources})
-add_library("${PROJECT_NAME}::${PROJECT_NAME}" ALIAS "${PROJECT_NAME}")
+target_compile_features(
+	${PROJECT_NAME}
+	PRIVATE
+		cxx_std_20
+)
 
-target_include_directories(${PROJECT_NAME}
-        PRIVATE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
-        $<INSTALL_INTERFACE:src>
-        ${ARTICUNO_INCLUDE_DIRS})
+target_include_directories(
+	${PROJECT_NAME}
+	PRIVATE
+		${CMAKE_CURRENT_BINARY_DIR}/include
+		${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 
-target_include_directories(${PROJECT_NAME}
-        PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_link_libraries(
+	${PROJECT_NAME}
+	PRIVATE
+		CommonLibSSE::CommonLibSSE
+		spdlog::spdlog
+)
 
-target_link_libraries(${PROJECT_NAME}
-        PRIVATE
-        ryml::ryml)
+if (MSVC)
+	target_compile_options(
+		${PROJECT_NAME}
+		PRIVATE
+			/sdl	# Enable Additional Security Checks
+			/utf-8	# Set Source and Executable character sets to UTF-8
+			/Zi	# Debug Information Format
 
-target_precompile_headers(${PROJECT_NAME}
-        PRIVATE
-        src/PCH.h)
+			/permissive-	# Standards conformance
 
-install(TARGETS ${PROJECT_NAME}
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+			/Zc:alignedNew	# C++17 over-aligned allocation
+			/Zc:auto	# Deduce Variable Type
+			/Zc:char8_t
+			/Zc:__cplusplus	# Enable updated __cplusplus macro
+			/Zc:externC
+			/Zc:externConstexpr	# Enable extern constexpr variables
+			/Zc:forScope	# Force Conformance in for Loop Scope
+			/Zc:hiddenFriend
+			/Zc:implicitNoexcept	# Implicit Exception Specifiers
+			/Zc:lambda
+			/Zc:noexceptTypes	# C++17 noexcept rules
+			/Zc:preprocessor	# Enable preprocessor conformance mode
+			/Zc:referenceBinding	# Enforce reference binding rules
+			/Zc:rvalueCast	# Enforce type conversion rules
+			/Zc:sizedDealloc	# Enable Global Sized Deallocation Functions
+			/Zc:strictStrings	# Disable string literal type conversion
+			/Zc:ternary	# Enforce conditional operator rules
+			/Zc:threadSafeInit	# Thread-safe Local Static Initialization
+			/Zc:tlsGuards
+			/Zc:trigraphs	# Trigraphs Substitution
+			/Zc:wchar_t	# wchar_t Is Native Type
 
-########################################################################################################################
-## Automatic plugin deployment
-########################################################################################################################
-# Automatic deployment to FOMOD directory.
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(BUILD_NAME "Debug")
-else()
-    set(BUILD_NAME "Release")
-endif()
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_SOURCE_DIR}/contrib/Distribution/Plugin${BUILD_NAME}/")
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> "${CMAKE_CURRENT_SOURCE_DIR}/contrib/Distribution/Plugin${BUILD_NAME}/")
+			/external:anglebrackets
+			/external:W0
 
-if(${CMAKE_BUILD_TYPE} STREQUAL Debug OR ${CMAKE_BUILD_TYPE} STREQUAL RelWithDebInfo)
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_PDB_FILE:${PROJECT_NAME}> "${CMAKE_CURRENT_SOURCE_DIR}/contrib/Distribution/Plugin${BUILD_NAME}/")
-endif()
-file(GLOB_RECURSE OUTPUT_DLLS "${CMAKE_CURRENT_SOURCE_DIR}/contrib/Distribution/**/*.dll")
-file(GLOB_RECURSE OUTPUT_PDBS "${CMAKE_CURRENT_SOURCE_DIR}/contrib/Distribution/**/*.pdb")
-set_property(TARGET ${PROJECT_NAME}
-        APPEND PROPERTY ADDITIONAL_CLEAN_FILES "${OUTPUT_DLLS}")
-set_property(TARGET ${PROJECT_NAME}
-        APPEND PROPERTY ADDITIONAL_CLEAN_FILES "${OUTPUT_PDBS}")
+			/W4	# Warning level
+			/WX	# Warning level (warnings are errors)
 
-# Automatic deployment to Mod Organizer 2 mod directory.
-foreach (DEPLOY_TARGET $ENV{SkyrimPluginTargets})
-    message("Adding deployment target ${DEPLOY_TARGET}.")
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> "${DEPLOY_TARGET}/SKSE/Plugins/")
+			"$<$<CONFIG:DEBUG>:>"
+			"$<$<CONFIG:RELEASE>:/Zc:inline;/JMC-;/Ob3>"
+	)
 
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/contrib/Distribution/Config/DodgeableConcentrationSpells.yaml" "${DEPLOY_TARGET}/SKSE/Plugins/")
+	target_link_options(
+		${PROJECT_NAME}
+		PRIVATE
+			/WX	# Treat Linker Warnings as Errors
 
-    if(${CMAKE_BUILD_TYPE} STREQUAL Debug OR ${CMAKE_BUILD_TYPE} STREQUAL RelWithDebInfo)
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_PDB_FILE:${PROJECT_NAME}> "${DEPLOY_TARGET}/SKSE/Plugins/")
-    endif()
-endforeach()
+			"$<$<CONFIG:DEBUG>:/INCREMENTAL;/OPT:NOREF;/OPT:NOICF>"
+			"$<$<CONFIG:RELEASE>:/INCREMENTAL:NO;/OPT:REF;/OPT:ICF;/DEBUG:FULL>"
+	)
+endif ()
+
+target_precompile_headers(
+	${PROJECT_NAME}
+	PRIVATE
+		src/PCH.h
+)
+
+# ---- Post build ----
+
+if (COPY_BUILD)
+	if (DEFINED CompiledPluginsPath)
+		add_custom_command(
+			TARGET ${PROJECT_NAME}
+			POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> ${CompiledPluginsPath}/SKSE/Plugins/
+			COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_PDB_FILE:${PROJECT_NAME}> ${CompiledPluginsPath}/SKSE/Plugins/
+		)
+	else ()
+		message(
+			WARNING
+			"Variable CompiledPluginsPath is not defined. Skipping post-build copy command."
+		)
+	endif ()
+endif ()

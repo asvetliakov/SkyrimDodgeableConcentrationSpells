@@ -1,23 +1,21 @@
-#include "Config.h"
+#include "config.h"
 
-#include <articuno/archives/ryml/ryml.h>
+#include <SimpleIni.h>
 
-using namespace articuno::ryml;
+void
+Config::ReadConfig()
+{
+    constexpr auto path = L"Data/SKSE/Plugins/DodgeableConcentrationSpells.ini";
 
-const Config& Config::GetSingleton() noexcept {
-    static Config instance;
+    CSimpleIniA ini;
+    ini.SetUnicode();
+    ini.LoadFile(path);
 
-    static std::atomic_bool initialized;
-    static std::latch latch(1);
-    if (!initialized.exchange(true)) {
-        std::ifstream inputFile(R"(Data\SKSE\Plugins\DodgeableConcentrationSpells.yaml)");
-        if (inputFile.good()) {
-            yaml_source ar(inputFile);
-            ar >> instance;
-        }
-        latch.count_down();
-    }
-    latch.wait();
+    playerRestrictMovement = ini.GetBoolValue("Player", "restrictMovement", true);
+    playerMovementModifier =
+        static_cast<float>(ini.GetDoubleValue("Player", "movementModifier", 0.4));
 
-    return instance;
+    npcRestrictMovement = ini.GetBoolValue("NPC", "restrictMovement", true);
+    npcRestrictRotation = ini.GetBoolValue("NPC", "restrictRotation", true);
+    npcMovementModifier = static_cast<float>(ini.GetDoubleValue("NPC", "movementModifier", 0.1));
 }

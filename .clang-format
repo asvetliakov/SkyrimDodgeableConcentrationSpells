@@ -1,10 +1,64 @@
----
-AccessModifierOffset: -4
-BasedOnStyle: Google
-ColumnLimit: 120
-IndentWidth: '4'
-NamespaceIndentation: All
-TabWidth: '4'
-UseTab: Never
+BasedOnStyle: LLVM
 
-...
+# General Formatting
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+BreakBeforeBraces: Allman # Use 'Allman' for better visibility of scopes (preferred in modern C++)
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakTemplateDeclarations: Yes
+AlwaysBreakAfterReturnType: TopLevel
+SpaceBeforeParens: ControlStatements
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+SpaceInEmptyParentheses: false
+Cpp11BracedListStyle: true
+DerivePointerAlignment: false
+PointerAlignment: Left
+
+# Includes
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^<.*\.h>'
+    Priority: 1
+    SortPriority: 0
+    CaseSensitive: false
+  - Regex: '^".*\.h"'
+    Priority: 2
+    SortPriority: 1
+    CaseSensitive: false
+SortIncludes: true
+IncludeIsMainRegex: "([-_](test|unittest))?$"
+
+# Namespaces
+NamespaceIndentation: All
+IndentNamespace: true
+
+# Alignment
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+AlignOperands: true
+AlignTrailingComments: true
+
+# Constructor Initializer Formatting
+BreakConstructorInitializersBeforeComma: true
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+
+# Lambda and Function Style
+AllowAllParametersOfDeclarationOnNextLine: false
+BinPackArguments: false
+BinPackParameters: false
+
+# Others
+ReflowComments: true
+SortUsingDeclarations: true
+SpaceAfterCStyleCast: true
+
+# For better compatibility across editors/IDEs
+IndentCaseLabels: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+
