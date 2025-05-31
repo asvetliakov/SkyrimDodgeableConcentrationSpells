@@ -2,11 +2,6 @@
 
 #include "Config.h"
 
-using namespace RE;
-using namespace RE::BSScript;
-using namespace REL;
-using namespace SKSE;
-
 namespace
 {
     float Hook_GetMaximumMovementSpeed(RE::Actor* actor);
@@ -136,7 +131,7 @@ namespace
 } // namespace
 
 void
-Hooks::Initialize(Trampoline& trampoline)
+Hooks::Initialize(SKSE::Trampoline& trampoline)
 {
     REL::Relocation<uintptr_t> setSpeedHook{RELOCATION_ID(37013, 37943)};
     _GetMaximumMovementSpeed = trampoline.write_call<5>(
@@ -146,5 +141,5 @@ Hooks::Initialize(Trampoline& trampoline)
     _AIProcess_SetRotationSpeedZ1 = trampoline.write_call<5>(
         setRotationSpeedZHook.address() + REL::VariantOffset(0x356, 0x3EF, 0).offset(),
         Hook_AIProcess_SetRotationSpeedZ1);
-    log::info("Finished hooks initialization");
+    logger::info("Finished hooks initialization");
 }

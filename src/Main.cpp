@@ -1,12 +1,15 @@
 #include "Config.h"
 #include "Hooks.h"
 
-#include <stddef.h>
-
-using namespace RE::BSScript;
-using namespace SKSE;
-using namespace SKSE::log;
-using namespace SKSE::stl;
+void
+InitializeHooking()
+{
+    logger::trace("Initializing trampoline...");
+    auto& trampoline = SKSE::GetTrampoline();
+    trampoline.create(64);
+    logger::trace("Trampoline initialized.");
+    Hooks::Initialize(trampoline);
+}
 
 void
 MessageHandler(SKSE::MessagingInterface::Message* a_msg)
@@ -46,7 +49,7 @@ extern "C" DLLEXPORT bool SKSEAPI
 SKSEPlugin_Load(const SKSE::LoadInterface* a_skse)
 {
     InitLog();
-    logger::info("Dodge Framework loaded");
+    logger::info("Loaded");
 
     SKSE::Init(a_skse);
 
