@@ -84,6 +84,7 @@ find_package(spdlog REQUIRED CONFIG)
 
 set(SOURCES
 	src/PCH.h
+	src/Main.cpp
 	src/Config.h
 	src/Config.cpp
 	src/Hooks.h
